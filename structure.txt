@@ -1,0 +1,24 @@
+rag_chatbot/
+│
+├─ app.py
+├─ requirements.txt
+├─ .env
+│
+├─ config/
+│   └─ settings.py
+│
+├─ core/
+│   ├─ deepseek_api.py
+│   ├─ embeddings.py
+│   ├─ vectorstore.py
+│   └─ text_processing.py
+│
+├─ chains/
+│   └─ rag_chain.py
+│
+├─ ui/
+│   ├─ chat_templates.py
+│   └─ sidebar.py
+│
+└─ utils/
+    └─ helpers.py

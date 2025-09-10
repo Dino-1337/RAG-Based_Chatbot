@@ -1,0 +1,25 @@
+# ---- Python / Backend ----
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.db
+*.sqlite3
+
+# ---- Environment & Config ----
+.env
+.env.*
+.venv
+*.local
+
+# ---- OS / IDE ----
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
