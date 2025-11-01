@@ -14,7 +14,15 @@ A powerful, full-stack Retrieval-Augmented Generation (RAG) chatbot that allows 
 - **📱 Mobile Friendly** - Fully responsive design for all devices
 - **🔒 Secure** - Local document processing with optional cloud AI
 
+<img width="1908" height="952" alt="RagImg" src="https://github.com/user-attachments/assets/8fda55a0-729e-48ac-9acb-36d75df88c26" />
+
+## Project Demo
+https://github.com/user-attachments/assets/4493a86f-00fe-4a1d-a563-722b966010bd
+
+
 ## 🛠️ Tech Stack
+
+
 
 ### Frontend
 - **React 18** - Modern UI framework
