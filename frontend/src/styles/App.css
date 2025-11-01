@@ -1,0 +1,160 @@
+/* Custom styles for the app */
+.app {
+  display: flex;
+  height: 100vh;
+  font-family: Arial, sans-serif;
+}
+
+.sidebar {
+  width: 300px;
+  background-color: #f8f9fa;
+  padding: 20px;
+  border-right: 1px solid #e9ecef;
+  display: flex;
+  flex-direction: column;
+}
+
+.sidebar-header {
+  display: flex;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.logo {
+  font-size: 2em;
+  margin-right: 10px;
+}
+
+.new-chat-btn {
+  background-color: #007bff;
+  color: white;
+  border: none;
+  padding: 10px;
+  border-radius: 5px;
+  cursor: pointer;
+  margin-bottom: 20px;
+}
+
+.upload-area {
+  margin-bottom: 20px;
+}
+
+.upload-box {
+  border: 2px dashed #dee2e6;
+  padding: 20px;
+  text-align: center;
+  border-radius: 5px;
+}
+
+.upload-icon {
+  font-size: 2em;
+  margin-bottom: 10px;
+}
+
+.documents-section h3 {
+  margin-bottom: 10px;
+}
+
+.document-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.document-item {
+  display: flex;
+  align-items: center;
+  padding: 10px;
+  background-color: white;
+  border-radius: 5px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.doc-icon {
+  margin-right: 10px;
+}
+
+.doc-name {
+  font-weight: bold;
+}
+
+.doc-meta {
+  font-size: 0.8em;
+  color: #6c757d;
+}
+
+.main-chat {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 20px;
+}
+
+.chat-header {
+  margin-bottom: 20px;
+}
+
+.chat-welcome {
+  text-align: center;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.welcome-icon {
+  font-size: 3em;
+  margin-bottom: 20px;
+}
+
+.suggested-questions {
+  margin-top: 20px;
+}
+
+.question-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.question-btn {
+  padding: 10px;
+  background-color: #e9ecef;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+.chat-input-area {
+  margin-top: auto;
+}
+
+.input-container {
+  display: flex;
+  align-items: center;
+  border: 1px solid #dee2e6;
+  border-radius: 5px;
+  padding: 10px;
+}
+
+.chat-input {
+  flex: 1;
+  border: none;
+  outline: none;
+  resize: none;
+}
+
+.send-btn {
+  background: none;
+  border: none;
+  font-size: 1.5em;
+  cursor: pointer;
+  margin-left: 10px;
+}
+
+.input-hint {
+  font-size: 0.8em;
+  color: #6c757d;
+  margin-top: 5px;
+}

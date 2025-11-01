@@ -1,0 +1,13 @@
+flask
+flask-cors
+python-dotenv
+requests
+chromadb
+pdfplumber
+python-docx
+python-pptx
+pandas
+openpyxl
+openai
+sentence-transformers
+werkzeug
