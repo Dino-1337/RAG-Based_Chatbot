@@ -11,3 +11,5 @@ openpyxl
 openai
 sentence-transformers
 werkzeug
+gunicorn==21.2.0
+
