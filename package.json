@@ -1,5 +1,16 @@
+
 {
-  "dependencies": {
+  "name": "rag-chatbot",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "concurrently \"cd server && python app.py\" \"cd frontend && npm run dev\"",
+    "build": "cd frontend && npm run build",
+    "start": "cd server && python app.py",
+    "install-deps": "cd frontend && npm install && cd ../server && pip install -r requirements.txt"
+  },
+  "devDependencies": {
+    "concurrently": "^7.6.0",
     "lucide-react": "^0.552.0"
   }
 }
