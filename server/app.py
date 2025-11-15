@@ -1,17 +1,22 @@
 import os
 import uuid
-from flask import Flask, request, jsonify
+from datetime import datetime
+from flask import Flask, request, jsonify, send_from_directory
 from openai import OpenAI
 from dotenv import load_dotenv
 from flask_cors import CORS
 from werkzeug.utils import secure_filename
+
+# 🎯 FIX: Load .env from project root (one level up from server/)
+env_path = os.path.join(os.path.dirname(__file__), '..', '.env')
+load_dotenv(env_path)
+
 from rag import add_document, retrieve, assemble_context, get_document_stats, clear_documents
 from parsers import extract_text
 
-load_dotenv()
-
-app = Flask(__name__)
-CORS(app, resources={r"/*": {"origins": "http://localhost:5173"}})
+# 🎯 STEP 1: Configure Flask for production static file serving
+app = Flask(__name__, static_folder='../frontend/dist', static_url_path='/')
+CORS(app)
 
 # OpenRouter DeepSeek API
 deepseek_client = OpenAI(
@@ -58,7 +63,6 @@ Always aim to transform the source into a **clear, insightful summary** — not 
 
 # Create necessary directories
 os.makedirs("uploads", exist_ok=True)
-os.makedirs("chroma_store", exist_ok=True)
 
 @app.route("/api/health", methods=["GET"])
 def health():
@@ -137,51 +141,102 @@ def upload():
     try:
         # Extract text from document
         text = extract_text(path)
+        
+        # Get file size before deleting
+        file_size = os.path.getsize(path)
+        
+        # 🎯 DELETE THE FILE AFTER PROCESSING
+        os.remove(path)
+        
         if not text.strip():
             return jsonify({"error": "No text extracted from file", "success": False}), 400
 
-        # Add to RAG system
+        # Add to RAG system with better metadata
         doc_id = str(uuid.uuid4())[:8]
-        chunks_count = add_document(doc_id=doc_id, source_name=filename, text=text)
+        chunks_count = add_document(
+            doc_id=doc_id, 
+            source_name=filename, 
+            text=text,
+            file_size=file_size
+        )
 
         return jsonify({
             "success": True, 
-            "message": f"Successfully processed {filename} into {chunks_count} chunks",
+            "message": f"✅ Document '{filename}' processed into {chunks_count} chunks",
             "document": {
                 "id": doc_id,
                 "name": filename,
-                "size": os.path.getsize(path),
-                "chunks": chunks_count
+                "chunks": chunks_count,
+                "size": file_size,
+                "uploadedAt": int(datetime.now().timestamp()),
+                "note": "Original file deleted after processing"
             }
         })
     except Exception as e:
+        # Clean up file if processing fails
+        if os.path.exists(path):
+            os.remove(path)
         return jsonify({"error": f"Processing failed: {str(e)}", "success": False}), 500
 
 @app.route("/api/documents", methods=["GET"])
 def get_documents():
-    """Get list of uploaded documents"""
+    """Get list of processed documents from vector store"""
     try:
-        documents = []
-        uploads_dir = "uploads"
-        if os.path.exists(uploads_dir):
-            for filename in os.listdir(uploads_dir):
-                filepath = os.path.join(uploads_dir, filename)
-                if os.path.isfile(filepath):
-                    documents.append({
-                        "id": str(uuid.uuid4())[:8],
-                        "name": filename,
-                        "size": os.path.getsize(filepath),
-                        "uploadedAt": os.path.getctime(filepath)
-                    })
-        return jsonify({"success": True, "documents": documents})
+        # Get all documents from Chroma to extract metadata
+        from rag import collection
+        results = collection.get()
+        
+        documents_map = {}
+        
+        # Group chunks by document and extract metadata
+        if results['metadatas']:
+            for i, metadata in enumerate(results['metadatas']):
+                doc_id = metadata.get('doc_id')
+                source_name = metadata.get('source')
+                file_size = metadata.get('file_size')
+                uploaded_at = metadata.get('uploaded_at')
+                
+                if doc_id and source_name:
+                    if doc_id not in documents_map:
+                        # Convert uploaded_at to timestamp if it's a string
+                        if uploaded_at and isinstance(uploaded_at, str):
+                            try:
+                                dt = datetime.fromisoformat(uploaded_at)
+                                timestamp = int(dt.timestamp())
+                            except:
+                                timestamp = int(datetime.now().timestamp())
+                        else:
+                            timestamp = int(datetime.now().timestamp())
+                        
+                        documents_map[doc_id] = {
+                            "id": doc_id,
+                            "name": source_name,
+                            "chunks": 0,
+                            "size": file_size or 0,
+                            "uploadedAt": timestamp
+                        }
+                    documents_map[doc_id]["chunks"] += 1
+        
+        # Convert map to list and sort by upload time (newest first)
+        documents = sorted(
+            list(documents_map.values()), 
+            key=lambda x: x["uploadedAt"], 
+            reverse=True
+        )
+        
+        return jsonify({
+            "success": True, 
+            "documents": documents,
+            "note": "Documents loaded from vector store"
+        })
     except Exception as e:
         return jsonify({"error": str(e), "success": False}), 500
 
 @app.route("/api/clear", methods=["POST"])
 def clear_all():
-    """Clear all documents and chat history"""
+    """Clear all documents and vector store"""
     try:
-        # Clear uploads directory
+        # Clear uploads directory (temporary files)
         uploads_dir = "uploads"
         if os.path.exists(uploads_dir):
             for filename in os.listdir(uploads_dir):
@@ -199,6 +254,20 @@ def clear_all():
     except Exception as e:
         return jsonify({"error": str(e), "success": False}), 500
 
+# 🎯 STEP 1: STATIC FILE SERVING FOR PRODUCTION
+@app.route('/', defaults={'path': ''})
+@app.route('/<path:path>')
+def serve_react_app(path):
+    """Serve React build files in production"""
+    static_dir = '../frontend/dist'
+    
+    # Check if requesting a specific file that exists
+    if path != "" and os.path.exists(os.path.join(static_dir, path)):
+        return send_from_directory(static_dir, path)
+    
+    # Otherwise serve the React index.html (for React Router)
+    return send_from_directory(static_dir, 'index.html')
+
 def clear_on_startup():
     """Clear previous documents on server startup"""
     print("🧹 Clearing previous documents...")
@@ -209,16 +278,30 @@ def clear_on_startup():
             if os.path.isfile(filepath):
                 os.remove(filepath)
     
-    clear_documents()
-    print("✅ Previous documents cleared")
+    # Clear ChromaDB vector store (this will handle the error gracefully)
+    try:
+        clear_documents()
+        print("✅ Previous documents cleared")
+    except Exception as e:
+        print(f"⚠️ Could not clear vector store (might be empty): {e}")
 
 if __name__ == "__main__":
-    # Clear documents on startup for fresh development
-    clear_on_startup()
+    # 🎯 OPTIONAL: Only clear in development, not needed for production
+    if os.environ.get('RAILWAY_ENVIRONMENT'):
+        print("🚀 Starting RAG Chatbot Server in PRODUCTION mode...")
+    else:
+        print("🚀 Starting RAG Chatbot Server in DEVELOPMENT mode...")
+        clear_on_startup()  # Only clear in development
     
-    print("🚀 Starting RAG Chatbot Server...")
     print("📚 Document processing: PDF, DOCX, TXT")
-    print("🔍 Vector store: ChromaDB")
+    print("🔍 Vector store: Chroma Cloud")
     print("🤖 AI: OpenRouter DeepSeek")
-    print("🌐 API running on: http://localhost:5000")
-    app.run(debug=True, port=5000)
+    
+    # 🎯 STEP 1: PRODUCTION SERVER CONFIG
+    if os.environ.get('PORT'):
+        port = int(os.environ.get('PORT', 5000))
+        print(f"🌐 Production mode running on port: {port}")
+        app.run(host='0.0.0.0', port=port, debug=False)
+    else:
+        print("🌐 Development mode running on: http://localhost:5000")
+        app.run(debug=True, port=5000)
