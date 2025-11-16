@@ -5,6 +5,8 @@ from flask import Flask, request, jsonify, send_from_directory
 from openai import OpenAI
 from dotenv import load_dotenv
 from flask_cors import CORS
+from werkzeug.utils import secure_filename  # ← ADD THIS LINE
+
 
 # 🎯 FIX: Load .env from project root (one level up from server/)
 env_path = os.path.join(os.path.dirname(__file__), '..', '.env')
@@ -182,7 +184,7 @@ def get_documents():
     """Get list of processed documents from vector store"""
     try:
         # Get all documents from Chroma to extract metadata
-        from server.rag import collection
+        from rag import collection
         results = collection.get()
         
         documents_map = {}

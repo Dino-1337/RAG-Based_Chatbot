@@ -1,7 +1,6 @@
 import os
 import PyPDF2
 import docx
-import tempfile
 
 def extract_text(file_path):
     """Extract text from various file formats"""
