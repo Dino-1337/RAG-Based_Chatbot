@@ -1,23 +1,25 @@
-const API_BASE = 'http://localhost:5000/api';
+// api.js
+
+// If deployed: uses Render's VITE_API_URL
+// If local: falls back to http://localhost:5000
+const BACKEND_ORIGIN = import.meta.env.VITE_API_URL ?? 'http://localhost:5000';
+
+const API_BASE = BACKEND_ORIGIN.replace(/\/$/, '') + '/api';
 
 export const apiService = {
-  // Send chat message
   async sendMessage(message) {
     const response = await fetch(`${API_BASE}/chat`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ message }),
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message })
     });
     return response.json();
   },
 
-  // Upload document
   async uploadDocument(file) {
     const formData = new FormData();
     formData.append('file', file);
-    
+
     const response = await fetch(`${API_BASE}/upload`, {
       method: 'POST',
       body: formData,
@@ -25,13 +27,11 @@ export const apiService = {
     return response.json();
   },
 
-  // Get documents list
   async getDocuments() {
     const response = await fetch(`${API_BASE}/documents`);
     return response.json();
   },
 
-  // Health check
   async healthCheck() {
     const response = await fetch(`${API_BASE}/health`);
     return response.json();
