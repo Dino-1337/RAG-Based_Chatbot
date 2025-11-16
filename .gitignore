@@ -12,7 +12,6 @@ node_modules/
 .env.production.local
 
 # Build outputs
-dist/
 build/
 *.tgz
 *.tar.gz
