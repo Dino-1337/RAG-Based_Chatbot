@@ -12,15 +12,13 @@ RUN apt-get update && apt-get install -y \
 COPY server/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy server files
+# Copy server files (including app.py which is now in server/)
 COPY server/ .
-
-# Copy main app
-COPY app.py .
 
 # Copy pre-built frontend
 COPY frontend/dist/ ./frontend/dist/
 
 EXPOSE 5000
 
+# app.py is now in the current directory (copied from server/)
 CMD ["python", "app.py"]
