@@ -5,7 +5,6 @@ from flask import Flask, request, jsonify, send_from_directory
 from openai import OpenAI
 from dotenv import load_dotenv
 from flask_cors import CORS
-from werkzeug.utils import secure_filename
 
 # 🎯 FIX: Load .env from project root (one level up from server/)
 env_path = os.path.join(os.path.dirname(__file__), '..', '.env')
