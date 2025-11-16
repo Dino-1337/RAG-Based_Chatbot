@@ -10,11 +10,11 @@ from flask_cors import CORS
 env_path = os.path.join(os.path.dirname(__file__), '..', '.env')
 load_dotenv(env_path)
 
-from server.rag import add_document, retrieve, assemble_context, get_document_stats, clear_documents
-from server.parsers import extract_text
+from rag import add_document, retrieve, assemble_context, get_document_stats, clear_documents
+from parsers import extract_text
 
 # 🎯 STEP 1: Configure Flask for production static file serving
-app = Flask(__name__, static_folder='frontend/dist', static_url_path='/')
+app = Flask(__name__, static_folder='../frontend/dist', static_url_path='/')
 CORS(app)
 
 # OpenRouter DeepSeek API
@@ -61,7 +61,7 @@ Always aim to transform the source into a **clear, insightful summary** — not 
 """
 
 # Create necessary directories
-os.makedirs("server/uploads", exist_ok=True)
+os.makedirs("uploads", exist_ok=True)
 
 @app.route("/api/health", methods=["GET"])
 def health():
