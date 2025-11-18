@@ -1,8 +1,7 @@
 import chromadb
 import os
-from sentence_transformers import SentenceTransformer
+import time
 from dotenv import load_dotenv
-from datetime import datetime
 
 env_path = os.path.join(os.path.dirname(__file__), '..', '.env')
 load_dotenv(env_path)
@@ -18,34 +17,57 @@ print("🔑 Connecting to Chroma Cloud...")
 # CloudClient works with just the API key!
 chroma_client = chromadb.CloudClient(api_key=chroma_api_key)
 
-# Get or create collection
-collection = chroma_client.get_or_create_collection(
-    name="rag_documents",
-    metadata={"description": "RAG chatbot document store"}
-)
-
 print("✅ Connected to Chroma Cloud successfully!")
 
-# Initialize embedding model
-embedder = SentenceTransformer("all-MiniLM-L6-v2")
+def cleanup_old_sessions(max_age_hours=2):
+    """Delete sessions older than specified hours"""
+    try:
+        collections = chroma_client.list_collections()
+        current_time = time.time()
+        deleted_count = 0
+        
+        for collection in collections:
+            if collection.name.startswith("rag_documents_session_"):
+                # Extract timestamp: session_1731758072345_abc123
+                parts = collection.name.split('_')
+                if len(parts) >= 3 and parts[2].isdigit():
+                    session_time = int(parts[2]) / 1000  # Convert milliseconds to seconds
+                    
+                    # Check if session is older than max_age_hours
+                    if current_time - session_time > max_age_hours * 60 * 60:
+                        chroma_client.delete_collection(collection.name)
+                        deleted_count += 1
+                        print(f"🧹 Deleted old session: {collection.name}")
+        
+        if deleted_count > 0:
+            print(f"✅ Cleaned up {deleted_count} old sessions")
+            
+    except Exception as e:
+        print(f"⚠️ Session cleanup failed: {e}")
 
-def add_document(doc_id, source_name, text, chunk_size=512, chunk_overlap=50, file_size=None):
+def get_user_collection(session_id):
+    """Get or create collection for specific session"""
+    # Run cleanup before creating new collections
+    cleanup_old_sessions(max_age_hours=2)
+    
+    collection_name = f"rag_documents_{session_id}"
+    return chroma_client.get_or_create_collection(
+        name=collection_name,
+        metadata={"description": f"RAG documents for session {session_id}"}
+    )
+
+def add_document(doc_id, source_name, text, session_id="default", chunk_size=512, chunk_overlap=50, file_size=None):
     """Add document to vector store with chunking"""
+    collection = get_user_collection(session_id)
+    
     # Split text into chunks
     chunks = chunk_text(text, chunk_size, chunk_overlap)
-    
-    # Generate embeddings
-    embeddings = embedder.encode(chunks)
     
     # Create document IDs
     doc_ids = [f"{doc_id}_{i}" for i in range(len(chunks))]
     
-    # Get current timestamp
-    uploaded_at = datetime.now().isoformat()
-    
-    # Add to Chroma with enhanced metadata
+    # Add to Chroma - it will automatically generate embeddings
     collection.add(
-        embeddings=embeddings.tolist(),
         documents=chunks,
         metadatas=[{
             "source": source_name,
@@ -53,7 +75,6 @@ def add_document(doc_id, source_name, text, chunk_size=512, chunk_overlap=50, fi
             "chunk_index": i,
             "total_chunks": len(chunks),
             "file_size": file_size,
-            "uploaded_at": uploaded_at
         } for i in range(len(chunks))],
         ids=doc_ids
     )
@@ -74,14 +95,13 @@ def chunk_text(text, chunk_size=512, chunk_overlap=50):
             
     return chunks
 
-def retrieve(query, top_k=3):
+def retrieve(query, session_id="default", top_k=3):
     """Retrieve relevant document chunks"""
-    # Generate query embedding
-    query_embedding = embedder.encode([query]).tolist()[0]
+    collection = get_user_collection(session_id)
     
-    # Search in Chroma
+    # Search in Chroma - it will automatically embed the query
     results = collection.query(
-        query_embeddings=[query_embedding],
+        query_texts=[query],
         n_results=top_k
     )
     
@@ -107,27 +127,28 @@ def assemble_context(hits):
     
     return "\n".join(context_parts)
 
-def get_document_stats():
+def get_document_stats(session_id="default"):
     """Get statistics about stored documents"""
+    collection = get_user_collection(session_id)
     count = collection.count()
     return {
         "total_chunks": count,
-        "collection": "rag_documents"
+        "collection": f"rag_documents_{session_id}"
     }
 
-def clear_documents():
-    """Clear all documents from vector store"""
+def clear_documents(session_id="default"):
+    """Clear all documents from vector store for specific session"""
     try:
-        # Safe way to clear - check if there are any documents first
-        count = collection.count()
-        if count > 0:
-            # Get all IDs and delete them
-            results = collection.get(limit=10000)  # Get all documents
-            if results['ids']:
-                collection.delete(ids=results['ids'])
-            return {"message": f"Cleared {count} documents from vector store"}
-        else:
-            return {"message": "Vector store was already empty"}
+        collection = get_user_collection(session_id)
+        # Get all document IDs and delete them
+        results = collection.get()
+        if results['ids']:
+            collection.delete(ids=results['ids'])
+        return {"message": f"Cleared documents for session {session_id}"}
     except Exception as e:
-        print(f"Note: Could not clear documents: {e}")
-        return {"message": "Vector store is empty or couldn't be cleared"}
+        print(f"Note: Could not clear documents for session {session_id}: {e}")
+        return {"message": f"Vector store for session {session_id} is empty or couldn't be cleared"}
+
+# Run cleanup on module import (server startup)
+print("🧹 Running initial session cleanup...")
+cleanup_old_sessions(max_age_hours=2)

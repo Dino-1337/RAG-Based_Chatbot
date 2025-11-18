@@ -5,14 +5,13 @@ from flask import Flask, request, jsonify, send_from_directory
 from openai import OpenAI
 from dotenv import load_dotenv
 from flask_cors import CORS
-from werkzeug.utils import secure_filename  # ← ADD THIS LINE
-
+from werkzeug.utils import secure_filename
 
 # 🎯 FIX: Load .env from project root (one level up from server/)
 env_path = os.path.join(os.path.dirname(__file__), '..', '.env')
 load_dotenv(env_path)
 
-from rag import add_document, retrieve, assemble_context, get_document_stats, clear_documents
+from rag import add_document, retrieve, assemble_context, get_document_stats, clear_documents, get_user_collection
 from parsers import extract_text
 
 # 🎯 STEP 1: Configure Flask for production static file serving
@@ -68,17 +67,20 @@ os.makedirs("uploads", exist_ok=True)
 @app.route("/api/health", methods=["GET"])
 def health():
     """Health check endpoint"""
-    stats = get_document_stats()
+    session_id = request.args.get('session_id', 'default')
+    stats = get_document_stats(session_id=session_id)
     return jsonify({
         "status": "healthy", 
         "service": "RAG Chatbot API",
         "documents_stored": stats,
+        "session_id": session_id,
         "provider": "OpenRouter DeepSeek + ChromaDB RAG"
     })
 
 @app.route("/api/chat", methods=["POST"])
 def chat():
     """Main chat endpoint with RAG"""
+    session_id = request.args.get('session_id', 'default')
     data = request.json or {}
     user_message = data.get("message", "")
 
@@ -87,7 +89,7 @@ def chat():
 
     try:
         # Retrieve relevant document chunks using RAG
-        hits = retrieve(user_message, top_k=3)
+        hits = retrieve(user_message, session_id=session_id, top_k=3)
         context = assemble_context(hits)
         
         # Build user prompt based on whether we have context
@@ -119,7 +121,8 @@ Please provide a helpful response."""
             "message": reply,
             "sender": "ai",
             "rag_used": len(hits) > 0,
-            "documents_retrieved": len(hits)
+            "documents_retrieved": len(hits),
+            "session_id": session_id
         })
 
     except Exception as e:
@@ -128,6 +131,8 @@ Please provide a helpful response."""
 @app.route("/api/upload", methods=["POST"])
 def upload():
     """Handle document upload and processing"""
+    session_id = request.args.get('session_id', 'default')
+    
     if "file" not in request.files:
         return jsonify({"error": "No file uploaded", "success": False}), 400
 
@@ -158,6 +163,7 @@ def upload():
             doc_id=doc_id, 
             source_name=filename, 
             text=text,
+            session_id=session_id,
             file_size=file_size
         )
 
@@ -171,7 +177,8 @@ def upload():
                 "size": file_size,
                 "uploadedAt": int(datetime.now().timestamp()),
                 "note": "Original file deleted after processing"
-            }
+            },
+            "session_id": session_id
         })
     except Exception as e:
         # Clean up file if processing fails
@@ -182,9 +189,11 @@ def upload():
 @app.route("/api/documents", methods=["GET"])
 def get_documents():
     """Get list of processed documents from vector store"""
+    session_id = request.args.get('session_id', 'default')
+    
     try:
-        # Get all documents from Chroma to extract metadata
-        from rag import collection
+        # Get collection for this session
+        collection = get_user_collection(session_id)
         results = collection.get()
         
         documents_map = {}
@@ -195,26 +204,15 @@ def get_documents():
                 doc_id = metadata.get('doc_id')
                 source_name = metadata.get('source')
                 file_size = metadata.get('file_size')
-                uploaded_at = metadata.get('uploaded_at')
                 
                 if doc_id and source_name:
                     if doc_id not in documents_map:
-                        # Convert uploaded_at to timestamp if it's a string
-                        if uploaded_at and isinstance(uploaded_at, str):
-                            try:
-                                dt = datetime.fromisoformat(uploaded_at)
-                                timestamp = int(dt.timestamp())
-                            except:
-                                timestamp = int(datetime.now().timestamp())
-                        else:
-                            timestamp = int(datetime.now().timestamp())
-                        
                         documents_map[doc_id] = {
                             "id": doc_id,
                             "name": source_name,
                             "chunks": 0,
                             "size": file_size or 0,
-                            "uploadedAt": timestamp
+                            "uploadedAt": int(datetime.now().timestamp())
                         }
                     documents_map[doc_id]["chunks"] += 1
         
@@ -228,14 +226,17 @@ def get_documents():
         return jsonify({
             "success": True, 
             "documents": documents,
-            "note": "Documents loaded from vector store"
+            "session_id": session_id,
+            "note": f"Documents loaded from session {session_id}"
         })
     except Exception as e:
         return jsonify({"error": str(e), "success": False}), 500
-
+    
 @app.route("/api/clear", methods=["POST"])
 def clear_all():
-    """Clear all documents and vector store"""
+    """Clear all documents and vector store for specific session"""
+    session_id = request.args.get('session_id', 'default')
+    
     try:
         # Clear uploads directory (temporary files)
         uploads_dir = "uploads"
@@ -245,12 +246,13 @@ def clear_all():
                 if os.path.isfile(filepath):
                     os.remove(filepath)
         
-        # Clear ChromaDB vector store
-        clear_documents()
+        # Clear ChromaDB vector store for this session
+        clear_documents(session_id=session_id)
         
         return jsonify({
             "success": True,
-            "message": "All documents and vector store cleared"
+            "message": f"All documents cleared for session {session_id}",
+            "session_id": session_id
         })
     except Exception as e:
         return jsonify({"error": str(e), "success": False}), 500
@@ -281,6 +283,7 @@ def clear_on_startup():
     
     # Clear ChromaDB vector store (this will handle the error gracefully)
     try:
+        # This will now trigger the auto-cleanup in rag.py
         clear_documents()
         print("✅ Previous documents cleared")
     except Exception as e:

@@ -405,29 +405,37 @@ function App() {
 
   const handleClearChat = async () => {
     try {
-      // Clear frontend state immediately - EMPTY arrays
+      // Get current session ID before creating new one
+      const oldSessionId = localStorage.getItem('rag_session_id');
+    
+    // Generate new session ID
+      const newSessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      localStorage.setItem('rag_session_id', newSessionId);
+    
+    // Clear frontend state immediately
       setMessages([]);
       setDocuments([]);
     
-      // Call backend to clear stored documents and vector store
-      const response = await fetch('http://localhost:5000/api/clear', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-    
-      const result = await response.json();
-    
-      if (result.success) {
-        // DON'T add any message - just leave messages empty
-      // This will show the homepage with suggested questions
-        console.log("New chat started - returning to homepage");
-      }   else {
-        console.error('Failed to clear documents: ' + result.error);
+    // Clear the OLD session data from Chroma Cloud (in background, don't wait)
+      if (oldSessionId) {
+        apiService.clearSessionDocuments(oldSessionId)
+          .then(result => {
+            if (result.success) {
+              console.log("🗑️ Cleared old session data:", oldSessionId);
+            } else {
+              console.warn("⚠️ Could not clear old session:", result.error);
+            }
+          })
+          .catch(error => {
+            console.error("❌ Error clearing old session:", error);
+          });
       }
+    
+      console.log("🆕 New chat session:", newSessionId);
+      console.log("🗑️ Old session cleared:", oldSessionId);
+    
     } catch (error) {
-      console.error('Error clearing chat:', error);
+      console.error('Error starting new chat:', error);
     }
   };
 
